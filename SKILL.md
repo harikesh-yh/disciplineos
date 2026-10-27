@@ -1,141 +1,285 @@
 ---
-name: find-skills
-description: Helps users discover and install agent skills when they ask questions like "how do I do X", "find a skill for X", "is there a skill that can...", or express interest in extending capabilities. This skill should be used when the user is looking for functionality that might exist as an installable skill.
+name: kotlin-coroutines-flows
+description: Kotlin Coroutines and Flow patterns for Android and KMP — structured concurrency, Flow operators, StateFlow, error handling, and testing. Use when writing coroutines or Flow code on Android or KMP, or debugging cancellation and concurrency.
+metadata:
+  origin: ECC
 ---
 
-# Find Skills
+# Kotlin Coroutines & Flows
 
-This skill helps you discover and install skills from the open agent skills ecosystem.
+Patterns for structured concurrency, Flow-based reactive streams, and coroutine testing in Android and Kotlin Multiplatform projects.
 
-## When to Use This Skill
+## When to Activate
 
-Use this skill when the user:
+- Writing async code with Kotlin coroutines
+- Using Flow, StateFlow, or SharedFlow for reactive data
+- Handling concurrent operations (parallel loading, debounce, retry)
+- Testing coroutines and Flows
+- Managing coroutine scopes and cancellation
 
-- Asks "how do I do X" where X might be a common task with an existing skill
-- Says "find a skill for X" or "is there a skill for X"
-- Asks "can you do X" where X is a specialized capability
-- Expresses interest in extending agent capabilities
-- Wants to search for tools, templates, or workflows
-- Mentions they wish they had help with a specific domain (design, testing, deployment, etc.)
+## Structured Concurrency
 
-## What is the Skills CLI?
-
-The Skills CLI (`npx skills`) is the package manager for the open agent skills ecosystem. Skills are modular packages that extend agent capabilities with specialized knowledge, workflows, and tools.
-
-**Key commands:**
-
-- `npx skills find [query] [--owner <owner>]` - Search for skills interactively or by keyword, optionally scoped to a GitHub owner
-- `npx skills add <package>` - Install a skill from GitHub or other sources
-- `npx skills update` - Update all installed skills
-
-**Browse skills at:** https://skills.sh/
-
-## How to Help Users Find Skills
-
-### Step 1: Understand What They Need
-
-When a user asks for help with something, identify:
-
-1. The domain (e.g., React, testing, design, deployment)
-2. The specific task (e.g., writing tests, creating animations, reviewing PRs)
-3. Whether this is a common enough task that a skill likely exists
-
-### Step 2: Check the Leaderboard First
-
-Before running a CLI search, check the [skills.sh leaderboard](https://skills.sh/) to see if a well-known skill already exists for the domain. The leaderboard ranks skills by total installs, surfacing the most popular and battle-tested options.
-
-For example, top skills for web development include:
-- `vercel-labs/agent-skills` — React, Next.js, web design (100K+ installs each)
-- `anthropics/skills` — Frontend design, document processing (100K+ installs)
-
-### Step 3: Search for Skills
-
-If the leaderboard doesn't cover the user's need, run the find command:
-
-```bash
-npx skills find [query] [--owner <owner>]
-```
-
-For example:
-
-- User asks "how do I make my React app faster?" → `npx skills find react performance`
-- User asks "can you help me with PR reviews?" → `npx skills find pr review`
-- User asks "I need to create a changelog" → `npx skills find changelog`
-
-### Step 4: Verify Quality Before Recommending
-
-**Do not recommend a skill based solely on search results.** Always verify:
-
-1. **Install count** — Prefer skills with 1K+ installs. Be cautious with anything under 100.
-2. **Source reputation** — Official sources (`vercel-labs`, `anthropics`, `microsoft`) are more trustworthy than unknown authors.
-3. **GitHub stars** — Check the source repository. A skill from a repo with <100 stars should be treated with skepticism.
-
-### Step 5: Present Options to the User
-
-When you find relevant skills, present them to the user with:
-
-1. The skill name and what it does
-2. The install count and source
-3. The install command they can run
-4. A link to learn more at skills.sh
-
-Example response:
+### Scope Hierarchy
 
 ```
-I found a skill that might help! The "react-best-practices" skill provides
-React and Next.js performance optimization guidelines from Vercel Engineering.
-(185K installs)
-
-To install it:
-npx skills add vercel-labs/agent-skills@react-best-practices
-
-Learn more: https://skills.sh/vercel-labs/agent-skills/react-best-practices
+Application
+  └── viewModelScope (ViewModel)
+        └── coroutineScope { } (structured child)
+              ├── async { } (concurrent task)
+              └── async { } (concurrent task)
 ```
 
-### Step 6: Offer to Install
+Always use structured concurrency — never `GlobalScope`:
 
-If the user wants to proceed, you can install the skill for them:
+```kotlin
+// BAD
+GlobalScope.launch { fetchData() }
 
-```bash
-npx skills add <owner/repo@skill> -g -y
+// GOOD — scoped to ViewModel lifecycle
+viewModelScope.launch { fetchData() }
+
+// GOOD — scoped to composable lifecycle
+LaunchedEffect(key) { fetchData() }
 ```
 
-The `-g` flag installs globally (user-level) and `-y` skips confirmation prompts.
+### Parallel Decomposition
 
-## Common Skill Categories
+Use `coroutineScope` + `async` for parallel work:
 
-When searching, consider these common categories:
-
-| Category        | Example Queries                          |
-| --------------- | ---------------------------------------- |
-| Web Development | react, nextjs, typescript, css, tailwind |
-| Testing         | testing, jest, playwright, e2e           |
-| DevOps          | deploy, docker, kubernetes, ci-cd        |
-| Documentation   | docs, readme, changelog, api-docs        |
-| Code Quality    | review, lint, refactor, best-practices   |
-| Design          | ui, ux, design-system, accessibility     |
-| Productivity    | workflow, automation, git                |
-
-## Tips for Effective Searches
-
-1. **Use specific keywords**: "react testing" is better than just "testing"
-2. **Try alternative terms**: If "deploy" doesn't work, try "deployment" or "ci-cd"
-3. **Check popular sources**: Many skills come from `vercel-labs/agent-skills` or `ComposioHQ/awesome-claude-skills`
-
-## When No Skills Are Found
-
-If no relevant skills exist:
-
-1. Acknowledge that no existing skill was found
-2. Offer to help with the task directly using your general capabilities
-3. Suggest the user could create their own skill with `npx skills init`
-
-Example:
-
+```kotlin
+suspend fun loadDashboard(): Dashboard = coroutineScope {
+    val items = async { itemRepository.getRecent() }
+    val stats = async { statsRepository.getToday() }
+    val profile = async { userRepository.getCurrent() }
+    Dashboard(
+        items = items.await(),
+        stats = stats.await(),
+        profile = profile.await()
+    )
+}
 ```
-I searched for skills related to "xyz" but didn't find any matches.
-I can still help you with this task directly! Would you like me to proceed?
 
-If this is something you do often, you could create your own skill:
-npx skills init my-xyz-skill
+### SupervisorScope
+
+Use `supervisorScope` when child failures should not cancel siblings:
+
+```kotlin
+suspend fun syncAll() = supervisorScope {
+    launch { syncItems() }       // failure here won't cancel syncStats
+    launch { syncStats() }
+    launch { syncSettings() }
+}
 ```
+
+## Flow Patterns
+
+### Cold Flow — One-Shot to Stream Conversion
+
+```kotlin
+fun observeItems(): Flow<List<Item>> = flow {
+    // Re-emits whenever the database changes
+    itemDao.observeAll()
+        .map { entities -> entities.map { it.toDomain() } }
+        .collect { emit(it) }
+}
+```
+
+### StateFlow for UI State
+
+```kotlin
+class DashboardViewModel(
+    observeProgress: ObserveUserProgressUseCase
+) : ViewModel() {
+    val progress: StateFlow<UserProgress> = observeProgress()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = UserProgress.EMPTY
+        )
+}
+```
+
+`WhileSubscribed(5_000)` keeps the upstream active for 5 seconds after the last subscriber leaves — survives configuration changes without restarting.
+
+### Combining Multiple Flows
+
+```kotlin
+val uiState: StateFlow<HomeState> = combine(
+    itemRepository.observeItems(),
+    settingsRepository.observeTheme(),
+    userRepository.observeProfile()
+) { items, theme, profile ->
+    HomeState(items = items, theme = theme, profile = profile)
+}.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeState())
+```
+
+### Flow Operators
+
+```kotlin
+// Debounce search input
+searchQuery
+    .debounce(300)
+    .distinctUntilChanged()
+    .flatMapLatest { query -> repository.search(query) }
+    .catch { emit(emptyList()) }
+    .collect { results -> _state.update { it.copy(results = results) } }
+
+// Retry with exponential backoff
+fun fetchWithRetry(): Flow<Data> = flow { emit(api.fetch()) }
+    .retryWhen { cause, attempt ->
+        if (cause is IOException && attempt < 3) {
+            delay(1000L * (1 shl attempt.toInt()))
+            true
+        } else {
+            false
+        }
+    }
+```
+
+### SharedFlow for One-Time Events
+
+```kotlin
+class ItemListViewModel : ViewModel() {
+    private val _effects = MutableSharedFlow<Effect>()
+    val effects: SharedFlow<Effect> = _effects.asSharedFlow()
+
+    sealed interface Effect {
+        data class ShowSnackbar(val message: String) : Effect
+        data class NavigateTo(val route: String) : Effect
+    }
+
+    private fun deleteItem(id: String) {
+        viewModelScope.launch {
+            repository.delete(id)
+            _effects.emit(Effect.ShowSnackbar("Item deleted"))
+        }
+    }
+}
+
+// Collect in Composable
+LaunchedEffect(Unit) {
+    viewModel.effects.collect { effect ->
+        when (effect) {
+            is Effect.ShowSnackbar -> snackbarHostState.showSnackbar(effect.message)
+            is Effect.NavigateTo -> navController.navigate(effect.route)
+        }
+    }
+}
+```
+
+## Dispatchers
+
+```kotlin
+// CPU-intensive work
+withContext(Dispatchers.Default) { parseJson(largePayload) }
+
+// IO-bound work
+withContext(Dispatchers.IO) { database.query() }
+
+// Main thread (UI) — default in viewModelScope
+withContext(Dispatchers.Main) { updateUi() }
+```
+
+In KMP, use `Dispatchers.Default` and `Dispatchers.Main` (available on all platforms). `Dispatchers.IO` is JVM/Android only — use `Dispatchers.Default` on other platforms or provide via DI.
+
+## Cancellation
+
+### Cooperative Cancellation
+
+Long-running loops must check for cancellation:
+
+```kotlin
+suspend fun processItems(items: List<Item>) = coroutineScope {
+    for (item in items) {
+        ensureActive()  // throws CancellationException if cancelled
+        process(item)
+    }
+}
+```
+
+### Cleanup with try/finally
+
+```kotlin
+viewModelScope.launch {
+    try {
+        _state.update { it.copy(isLoading = true) }
+        val data = repository.fetch()
+        _state.update { it.copy(data = data) }
+    } finally {
+        _state.update { it.copy(isLoading = false) }  // always runs, even on cancellation
+    }
+}
+```
+
+## Testing
+
+### Testing StateFlow with Turbine
+
+```kotlin
+@Test
+fun `search updates item list`() = runTest {
+    val fakeRepository = FakeItemRepository().apply { emit(testItems) }
+    val viewModel = ItemListViewModel(GetItemsUseCase(fakeRepository))
+
+    viewModel.state.test {
+        assertEquals(ItemListState(), awaitItem())  // initial
+
+        viewModel.onSearch("query")
+        val loading = awaitItem()
+        assertTrue(loading.isLoading)
+
+        val loaded = awaitItem()
+        assertFalse(loaded.isLoading)
+        assertEquals(1, loaded.items.size)
+    }
+}
+```
+
+### Testing with TestDispatcher
+
+```kotlin
+@Test
+fun `parallel load completes correctly`() = runTest {
+    val viewModel = DashboardViewModel(
+        itemRepo = FakeItemRepo(),
+        statsRepo = FakeStatsRepo()
+    )
+
+    viewModel.load()
+    advanceUntilIdle()
+
+    val state = viewModel.state.value
+    assertNotNull(state.items)
+    assertNotNull(state.stats)
+}
+```
+
+### Faking Flows
+
+```kotlin
+class FakeItemRepository : ItemRepository {
+    private val _items = MutableStateFlow<List<Item>>(emptyList())
+
+    override fun observeItems(): Flow<List<Item>> = _items
+
+    fun emit(items: List<Item>) { _items.value = items }
+
+    override suspend fun getItemsByCategory(category: String): Result<List<Item>> {
+        return Result.success(_items.value.filter { it.category == category })
+    }
+}
+```
+
+## Anti-Patterns to Avoid
+
+- Using `GlobalScope` — leaks coroutines, no structured cancellation
+- Collecting Flows in `init {}` without a scope — use `viewModelScope.launch`
+- Using `MutableStateFlow` with mutable collections — always use immutable copies: `_state.update { it.copy(list = it.list + newItem) }`
+- Catching `CancellationException` — let it propagate for proper cancellation
+- Using `flowOn(Dispatchers.Main)` to collect — collection dispatcher is the caller's dispatcher
+- Creating `Flow` in `@Composable` without `remember` — recreates the flow every recomposition
+
+## References
+
+See skill: `compose-multiplatform-patterns` for UI consumption of Flows.
+See skill: `android-clean-architecture` for where coroutines fit in layers.
