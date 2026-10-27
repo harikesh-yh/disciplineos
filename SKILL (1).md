@@ -1,340 +1,579 @@
 ---
-name: android-clean-architecture
-description: Clean Architecture patterns for Android and Kotlin Multiplatform projects — module structure, dependency rules, UseCases, Repositories, and data layer patterns. Use when structuring modules, layers, or data flow in an Android or KMP project.
-metadata:
-  origin: ECC
+name: hono
+description: Use when building Hono web applications or when the user asks about Hono APIs, routing, middleware, JSX, validation, testing, or streaming. TRIGGER when code imports from 'hono' or 'hono/*', or user mentions Hono. Use `npx hono request` to test endpoints.
 ---
 
-# Android Clean Architecture
+# Hono Skill
 
-Clean Architecture patterns for Android and KMP projects. Covers module boundaries, dependency inversion, UseCase/Repository patterns, and data layer design with Room, SQLDelight, and Ktor.
+Build Hono web applications. This skill provides inline API knowledge for AI. Use `npx hono request` to test endpoints. If the `hono-docs` MCP server is configured, prefer its tools for the latest documentation over the inline reference.
 
-## When to Activate
+## Hono CLI Usage
 
-- Structuring Android or KMP project modules
-- Implementing UseCases, Repositories, or DataSources
-- Designing data flow between layers (domain, data, presentation)
-- Setting up dependency injection with Koin or Hilt
-- Working with Room, SQLDelight, or Ktor in a layered architecture
+### Request Testing
 
-## Module Structure
+Test endpoints without starting an HTTP server. Uses `app.request()` internally.
 
-### Recommended Layout
+```bash
+# GET request
+npx hono request [file] -P /path
 
-```
-project/
-├── app/                  # Android entry point, DI wiring, Application class
-├── core/                 # Shared utilities, base classes, error types
-├── domain/               # UseCases, domain models, repository interfaces (pure Kotlin)
-├── data/                 # Repository implementations, DataSources, DB, network
-├── presentation/         # Screens, ViewModels, UI models, navigation
-├── design-system/        # Reusable Compose components, theme, typography
-└── feature/              # Feature modules (optional, for larger projects)
-    ├── auth/
-    ├── settings/
-    └── profile/
+# POST request with JSON body
+npx hono request [file] -X POST -P /api/users -d '{"name": "test"}'
 ```
 
-### Dependency Rules
+**Note:** Do not pass credentials directly in CLI arguments. Use environment variables for sensitive values. `hono request` does not support Cloudflare Workers bindings (KV, D1, R2, etc.). When bindings are required, use `workers-fetch` instead:
 
-```
-app → presentation, domain, data, core
-presentation → domain, design-system, core
-data → domain, core
-domain → core (or no dependencies)
-core → (nothing)
+```bash
+npx workers-fetch /path
+npx workers-fetch -X POST -H "Content-Type:application/json" -d '{"name":"test"}' /api/users
 ```
 
-**Critical**: `domain` must NEVER depend on `data`, `presentation`, or any framework. It contains pure Kotlin only.
+---
 
-## Domain Layer
+## Hono API Reference
 
-### UseCase Pattern
+### App Constructor
 
-Each UseCase represents one business operation. Use `operator fun invoke` for clean call sites:
+```ts
+import { Hono } from 'hono'
 
-```kotlin
-class GetItemsByCategoryUseCase(
-    private val repository: ItemRepository
-) {
-    suspend operator fun invoke(category: String): Result<List<Item>> {
-        return repository.getItemsByCategory(category)
-    }
+const app = new Hono()
+
+// With TypeScript generics
+type Env = {
+  Bindings: { DATABASE: D1Database; KV: KVNamespace }
+  Variables: { user: User }
 }
+const app = new Hono<Env>()
+```
 
-// Flow-based UseCase for reactive streams
-class ObserveUserProgressUseCase(
-    private val repository: UserRepository
-) {
-    operator fun invoke(userId: String): Flow<UserProgress> {
-        return repository.observeProgress(userId)
-    }
+### Routing Methods
+
+```ts
+app.get('/path', handler)
+app.post('/path', handler)
+app.put('/path', handler)
+app.delete('/path', handler)
+app.patch('/path', handler)
+app.options('/path', handler)
+app.all('/path', handler) // all HTTP methods
+app.on('PURGE', '/path', handler) // custom method
+app.on(['PUT', 'DELETE'], '/path', handler) // multiple methods
+```
+
+### Routing Patterns
+
+```ts
+// Path parameters
+app.get('/user/:name', (c) => {
+  const name = c.req.param('name')
+  return c.json({ name })
+})
+
+// Multiple params
+app.get('/posts/:id/comments/:commentId', (c) => {
+  const { id, commentId } = c.req.param()
+})
+
+// Optional parameters
+app.get('/api/animal/:type?', (c) => c.text('Animal!'))
+
+// Wildcards
+app.get('/wild/*/card', (c) => c.text('Wildcard'))
+
+// Regexp constraints
+app.get('/post/:date{[0-9]+}/:title{[a-z]+}', (c) => {
+  const { date, title } = c.req.param()
+})
+
+// Chained routes
+app
+  .get('/endpoint', (c) => c.text('GET'))
+  .post((c) => c.text('POST'))
+  .delete((c) => c.text('DELETE'))
+```
+
+### Route Grouping
+
+```ts
+// Using route()
+const api = new Hono()
+api.get('/users', (c) => c.json([]))
+
+const app = new Hono()
+app.route('/api', api) // mounts at /api/users
+
+// Using basePath()
+const app = new Hono().basePath('/api')
+app.get('/users', (c) => c.json([])) // GET /api/users
+```
+
+### Error Handling
+
+```ts
+app.notFound((c) => c.json({ message: 'Not Found' }, 404))
+
+app.onError((err, c) => {
+  console.error(err)
+  return c.json({ message: 'Internal Server Error' }, 500)
+})
+```
+
+---
+
+## Context (c)
+
+### Response Methods
+
+```ts
+c.text('Hello') // text/plain
+c.json({ message: 'Hello' }) // application/json
+c.html('<h1>Hello</h1>') // text/html
+c.redirect('/new-path') // 302 redirect
+c.redirect('/new-path', 301) // 301 redirect
+c.body('raw body', 200, headers) // raw response
+c.notFound() // 404 response
+```
+
+### Headers & Status
+
+```ts
+c.status(201)
+c.header('X-Custom', 'value')
+c.header('Cache-Control', 'no-store')
+```
+
+### Variables (request-scoped data)
+
+```ts
+// In middleware
+c.set('user', { id: 1, name: 'Alice' })
+
+// In handler
+const user = c.get('user')
+// or
+const user = c.var.user
+```
+
+### Environment (Cloudflare Workers)
+
+```ts
+const value = await c.env.KV.get('key')
+const db = c.env.DATABASE
+c.executionCtx.waitUntil(promise)
+```
+
+### Renderer
+
+```ts
+app.use(async (c, next) => {
+  c.setRenderer((content) =>
+    c.html(
+      <html><body>{content}</body></html>
+    )
+  )
+  await next()
+})
+
+app.get('/', (c) => c.render(<h1>Hello</h1>))
+```
+
+---
+
+## HonoRequest (c.req)
+
+```ts
+c.req.param('id') // path parameter
+c.req.param() // all path params as object
+c.req.query('page') // query string parameter
+c.req.query() // all query params as object
+c.req.queries('tags') // multiple values: ?tags=A&tags=B → ['A', 'B']
+c.req.header('Authorization') // request header
+c.req.header() // all headers (keys are lowercase)
+
+// Body parsing
+await c.req.json() // parse JSON body
+await c.req.text() // parse text body
+await c.req.formData() // parse as FormData
+await c.req.parseBody() // parse multipart/form-data or urlencoded
+await c.req.arrayBuffer() // parse as ArrayBuffer
+await c.req.blob() // parse as Blob
+
+// Validated data (used with validator middleware)
+c.req.valid('json')
+c.req.valid('query')
+c.req.valid('form')
+c.req.valid('param')
+
+// Properties
+c.req.url // full URL string
+c.req.path // pathname
+c.req.method // HTTP method
+c.req.raw // underlying Request object
+```
+
+---
+
+## Middleware
+
+### Using Built-in Middleware
+
+```ts
+import { cors } from 'hono/cors'
+import { logger } from 'hono/logger'
+import { basicAuth } from 'hono/basic-auth'
+import { prettyJSON } from 'hono/pretty-json'
+import { secureHeaders } from 'hono/secure-headers'
+import { etag } from 'hono/etag'
+import { compress } from 'hono/compress'
+import { poweredBy } from 'hono/powered-by'
+import { timing } from 'hono/timing'
+import { cache } from 'hono/cache'
+import { bearerAuth } from 'hono/bearer-auth'
+import { jwt } from 'hono/jwt'
+import { csrf } from 'hono/csrf'
+import { ipRestriction } from 'hono/ip-restriction'
+import { bodyLimit } from 'hono/body-limit'
+import { requestId } from 'hono/request-id'
+import { methodOverride } from 'hono/method-override'
+import { trailingSlash, trimTrailingSlash } from 'hono/trailing-slash'
+
+// Registration
+app.use(logger()) // all routes
+app.use('/api/*', cors()) // specific path
+app.post('/api/*', basicAuth({ username: 'admin', password: 'secret' }))
+```
+
+### Custom Middleware
+
+```ts
+// Inline
+app.use(async (c, next) => {
+  const start = Date.now()
+  await next()
+  const elapsed = Date.now() - start
+  c.res.headers.set('X-Response-Time', `${elapsed}ms`)
+})
+
+// Reusable with createMiddleware
+import { createMiddleware } from 'hono/factory'
+
+const auth = createMiddleware(async (c, next) => {
+  const token = c.req.header('Authorization')
+  if (!token) return c.json({ error: 'Unauthorized' }, 401)
+  await next()
+})
+
+app.use('/api/*', auth)
+```
+
+### Middleware Execution Order
+
+Middleware executes in registration order. `await next()` calls the next middleware/handler, and code after `next()` runs on the way back:
+
+```
+Request → mw1 before → mw2 before → handler → mw2 after → mw1 after → Response
+```
+
+```ts
+app.use(async (c, next) => {
+  // before handler
+  await next()
+  // after handler
+})
+```
+
+---
+
+## Validation
+
+Validation targets: `json`, `form`, `query`, `header`, `param`, `cookie`.
+
+### Zod Validator
+
+```ts
+import { zValidator } from '@hono/zod-validator'
+import { z } from 'zod'
+
+const schema = z.object({
+  title: z.string().min(1),
+  body: z.string()
+})
+
+app.post('/posts', zValidator('json', schema), (c) => {
+  const data = c.req.valid('json') // fully typed
+  return c.json(data, 201)
+})
+```
+
+### Valibot / Standard Schema Validator
+
+```ts
+import { sValidator } from '@hono/standard-validator'
+import * as v from 'valibot'
+
+const schema = v.object({ name: v.string(), age: v.number() })
+
+app.post('/users', sValidator('json', schema), (c) => {
+  const data = c.req.valid('json')
+  return c.json(data, 201)
+})
+```
+
+---
+
+## JSX
+
+### Setup
+
+In `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx"
+  }
 }
 ```
 
-### Domain Models
+Or use pragma: `/** @jsxImportSource hono/jsx */`
 
-Domain models are plain Kotlin data classes — no framework annotations:
+**Important:** Files using JSX must have a `.tsx` extension. Rename `.ts` to `.tsx` or the compiler will fail.
 
-```kotlin
-data class Item(
-    val id: String,
-    val title: String,
-    val description: String,
-    val tags: List<String>,
-    val status: Status,
-    val category: String
+### Components
+
+```tsx
+import type { PropsWithChildren } from 'hono/jsx'
+
+const Layout = (props: PropsWithChildren) => (
+  <html>
+    <head>
+      <title>My App</title>
+    </head>
+    <body>{props.children}</body>
+  </html>
 )
 
-enum class Status { DRAFT, ACTIVE, ARCHIVED }
-```
-
-### Repository Interfaces
-
-Defined in domain, implemented in data:
-
-```kotlin
-interface ItemRepository {
-    suspend fun getItemsByCategory(category: String): Result<List<Item>>
-    suspend fun saveItem(item: Item): Result<Unit>
-    fun observeItems(): Flow<List<Item>>
-}
-```
-
-## Data Layer
-
-### Repository Implementation
-
-Coordinates between local and remote data sources:
-
-```kotlin
-class ItemRepositoryImpl(
-    private val localDataSource: ItemLocalDataSource,
-    private val remoteDataSource: ItemRemoteDataSource
-) : ItemRepository {
-
-    override suspend fun getItemsByCategory(category: String): Result<List<Item>> {
-        return runCatching {
-            val remote = remoteDataSource.fetchItems(category)
-            localDataSource.insertItems(remote.map { it.toEntity() })
-            localDataSource.getItemsByCategory(category).map { it.toDomain() }
-        }
-    }
-
-    override suspend fun saveItem(item: Item): Result<Unit> {
-        return runCatching {
-            localDataSource.insertItems(listOf(item.toEntity()))
-        }
-    }
-
-    override fun observeItems(): Flow<List<Item>> {
-        return localDataSource.observeAll().map { entities ->
-            entities.map { it.toDomain() }
-        }
-    }
-}
-```
-
-### Mapper Pattern
-
-Keep mappers as extension functions near the data models:
-
-```kotlin
-// In data layer
-fun ItemEntity.toDomain() = Item(
-    id = id,
-    title = title,
-    description = description,
-    tags = tags.split("|"),
-    status = Status.valueOf(status),
-    category = category
+const UserCard = ({ name }: { name: string }) => (
+  <div class="card">
+    <h2>{name}</h2>
+  </div>
 )
 
-fun ItemDto.toEntity() = ItemEntity(
-    id = id,
-    title = title,
-    description = description,
-    tags = tags.joinToString("|"),
-    status = status,
-    category = category
+app.get('/', (c) => {
+  return c.html(
+    <Layout>
+      <UserCard name="Alice" />
+    </Layout>
+  )
+})
+```
+
+### jsxRenderer Middleware
+
+Use `jsxRenderer` middleware for layouts. See `npx hono docs /docs/middleware/builtin/jsx-renderer` for details.
+
+### Async Components
+
+```tsx
+const UserList = async () => {
+  const users = await fetchUsers()
+  return (
+    <ul>
+      {users.map((u) => (
+        <li>{u.name}</li>
+      ))}
+    </ul>
+  )
+}
+```
+
+### Fragments
+
+```tsx
+const Items = () => (
+  <>
+    <li>Item 1</li>
+    <li>Item 2</li>
+  </>
 )
 ```
 
-### Room Database (Android)
+---
 
-```kotlin
-@Entity(tableName = "items")
-data class ItemEntity(
-    @PrimaryKey val id: String,
-    val title: String,
-    val description: String,
-    val tags: String,
-    val status: String,
-    val category: String
-)
+## Streaming
 
-@Dao
-interface ItemDao {
-    @Query("SELECT * FROM items WHERE category = :category")
-    suspend fun getByCategory(category: String): List<ItemEntity>
+```ts
+import { stream, streamText, streamSSE } from 'hono/streaming'
 
-    @Upsert
-    suspend fun upsert(items: List<ItemEntity>)
+// Basic stream
+app.get('/stream', (c) => {
+  return stream(c, async (stream) => {
+    stream.onAbort(() => console.log('Aborted'))
+    await stream.write(new Uint8Array([0x48, 0x65]))
+    await stream.pipe(readableStream)
+  })
+})
 
-    @Query("SELECT * FROM items")
-    fun observeAll(): Flow<List<ItemEntity>>
-}
-```
+// Text stream
+app.get('/stream-text', (c) => {
+  return streamText(c, async (stream) => {
+    await stream.writeln('Hello')
+    await stream.sleep(1000)
+    await stream.write('World')
+  })
+})
 
-### SQLDelight (KMP)
-
-```sql
--- Item.sq
-CREATE TABLE ItemEntity (
-    id TEXT NOT NULL PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT NOT NULL,
-    tags TEXT NOT NULL,
-    status TEXT NOT NULL,
-    category TEXT NOT NULL
-);
-
-getByCategory:
-SELECT * FROM ItemEntity WHERE category = ?;
-
-upsert:
-INSERT OR REPLACE INTO ItemEntity (id, title, description, tags, status, category)
-VALUES (?, ?, ?, ?, ?, ?);
-
-observeAll:
-SELECT * FROM ItemEntity;
-```
-
-### Ktor Network Client (KMP)
-
-```kotlin
-class ItemRemoteDataSource(private val client: HttpClient) {
-
-    suspend fun fetchItems(category: String): List<ItemDto> {
-        return client.get("api/items") {
-            parameter("category", category)
-        }.body()
+// Server-Sent Events
+app.get('/sse', (c) => {
+  return streamSSE(c, async (stream) => {
+    let id = 0
+    while (true) {
+      await stream.writeSSE({
+        data: JSON.stringify({ time: new Date().toISOString() }),
+        event: 'time-update',
+        id: String(id++)
+      })
+      await stream.sleep(1000)
     }
-}
-
-// HttpClient setup with content negotiation
-val httpClient = HttpClient {
-    install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-    install(Logging) { level = LogLevel.HEADERS }
-    defaultRequest { url("https://api.example.com/") }
-}
+  })
+})
 ```
 
-## Dependency Injection
+---
 
-### Koin (KMP-friendly)
+## Testing with app.request()
 
-```kotlin
-// Domain module
-val domainModule = module {
-    factory { GetItemsByCategoryUseCase(get()) }
-    factory { ObserveUserProgressUseCase(get()) }
-}
+Test endpoints without starting an HTTP server:
 
-// Data module
-val dataModule = module {
-    single<ItemRepository> { ItemRepositoryImpl(get(), get()) }
-    single { ItemLocalDataSource(get()) }
-    single { ItemRemoteDataSource(get()) }
-}
+```ts
+// GET
+const res = await app.request('/posts')
+expect(res.status).toBe(200)
+expect(await res.json()).toEqual({ posts: [] })
 
-// Presentation module
-val presentationModule = module {
-    viewModelOf(::ItemListViewModel)
-    viewModelOf(::DashboardViewModel)
-}
+// POST with JSON
+const res = await app.request('/posts', {
+  method: 'POST',
+  body: JSON.stringify({ title: 'Hello' }),
+  headers: { 'Content-Type': 'application/json' }
+})
+
+// POST with FormData
+const formData = new FormData()
+formData.append('name', 'Alice')
+const res = await app.request('/users', { method: 'POST', body: formData })
+
+// With mock env (Cloudflare Workers bindings)
+const res = await app.request('/api/data', {}, { KV: mockKV, DATABASE: mockDB })
+
+// Using Request object
+const req = new Request('http://localhost/api', { method: 'DELETE' })
+const res = await app.request(req)
 ```
 
-### Hilt (Android-only)
+---
 
-```kotlin
-@Module
-@InstallIn(SingletonComponent::class)
-abstract class RepositoryModule {
-    @Binds
-    abstract fun bindItemRepository(impl: ItemRepositoryImpl): ItemRepository
-}
+## Hono Client (RPC)
 
-@HiltViewModel
-class ItemListViewModel @Inject constructor(
-    private val getItems: GetItemsByCategoryUseCase
-) : ViewModel()
+Type-safe API client using shared types between server and client.
+
+**IMPORTANT: Routes MUST be chained for type inference to work. Without chaining, the client cannot infer route types.**
+
+```ts
+// Server: routes MUST be chained to preserve types
+const route = app
+  .post('/posts', zValidator('json', schema), (c) => {
+    return c.json({ ok: true }, 201)
+  })
+  .get('/posts', (c) => {
+    return c.json({ posts: [] })
+  })
+export type AppType = typeof route
+
+// Client: use hc() with the exported type
+import { hc } from 'hono/client'
+import type { AppType } from './server'
+
+const client = hc<AppType>('http://localhost:8787/')
+const res = await client.posts.$post({ json: { title: 'Hello' } })
+const data = await res.json() // fully typed
 ```
 
-## Error Handling
+Type utilities:
 
-### Result/Try Pattern
+```ts
+import type { InferRequestType, InferResponseType } from 'hono/client'
 
-Use `Result<T>` or a custom sealed type for error propagation:
-
-```kotlin
-sealed interface Try<out T> {
-    data class Success<T>(val value: T) : Try<T>
-    data class Failure(val error: AppError) : Try<Nothing>
-}
-
-sealed interface AppError {
-    data class Network(val message: String) : AppError
-    data class Database(val message: String) : AppError
-    data object Unauthorized : AppError
-}
-
-// In ViewModel — map to UI state
-viewModelScope.launch {
-    when (val result = getItems(category)) {
-        is Try.Success -> _state.update { it.copy(items = result.value, isLoading = false) }
-        is Try.Failure -> _state.update { it.copy(error = result.error.toMessage(), isLoading = false) }
-    }
-}
+type ReqType = InferRequestType<typeof client.posts.$post>
+type ResType = InferResponseType<typeof client.posts.$post, 200>
 ```
 
-## Convention Plugins (Gradle)
+---
 
-For KMP projects, use convention plugins to reduce build file duplication:
+## Helpers
 
-```kotlin
-// build-logic/src/main/kotlin/kmp-library.gradle.kts
-plugins {
-    id("org.jetbrains.kotlin.multiplatform")
-}
+Helpers are utility functions imported from `hono/<helper-name>`:
 
-kotlin {
-    androidTarget()
-    iosX64(); iosArm64(); iosSimulatorArm64()
-    sourceSets {
-        commonMain.dependencies { /* shared deps */ }
-        commonTest.dependencies { implementation(kotlin("test")) }
-    }
-}
+```ts
+import { getConnInfo } from 'hono/conninfo'
+import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
+import { css, Style } from 'hono/css'
+import { createFactory } from 'hono/factory'
+import { html, raw } from 'hono/html'
+import { stream, streamText, streamSSE } from 'hono/streaming'
+import { testClient } from 'hono/testing'
+import { upgradeWebSocket } from 'hono/cloudflare-workers' // or other adapter
 ```
 
-Apply in modules:
+Available helpers: Accepts, Adapter, ConnInfo, Cookie, css, Dev, Factory, html, JWT, Proxy, Route, SSG, Streaming, Testing, WebSocket.
 
-```kotlin
-// domain/build.gradle.kts
-plugins { id("kmp-library") }
+For details, use `npx hono docs /docs/helpers/<helper-name>`.
+
+### Factory
+
+Use `createFactory` to define `Env` once and share it across app, middleware, and handlers:
+
+```ts
+import { createFactory } from 'hono/factory'
+
+const factory = createFactory<Env>()
+
+// Create app (Env type is inherited)
+const app = factory.createApp()
+
+// Create middleware (Env type is inherited, no need to pass generics)
+const mw = factory.createMiddleware(async (c, next) => {
+  await next()
+})
+
+// Create handlers separately (preserves type inference)
+const handlers = factory.createHandlers(logger(), (c) => c.json({ message: 'Hello' }))
+app.get('/api', ...handlers)
 ```
 
-## Anti-Patterns to Avoid
+---
 
-- Importing Android framework classes in `domain` — keep it pure Kotlin
-- Exposing database entities or DTOs to the UI layer — always map to domain models
-- Putting business logic in ViewModels — extract to UseCases
-- Using `GlobalScope` or unstructured coroutines — use `viewModelScope` or structured concurrency
-- Fat repository implementations — split into focused DataSources
-- Circular module dependencies — if A depends on B, B must not depend on A
+## Best Practices
 
-## References
+- Write handlers inline in route definitions for proper type inference of path params.
+- Use `app.route()` to organize large apps by feature, not Rails-style controllers.
+- Use `createFactory()` to share Env type across app, middleware, and handlers.
+- Use `c.set()`/`c.get()` to pass data between middleware and handlers.
+- Chain validators for multiple request parts (param + query + json).
+- Export app type for RPC: `export type AppType = typeof routes`
+- Use `app.request()` for testing — no server startup needed.
 
-See skill: `compose-multiplatform-patterns` for UI patterns.
-See skill: `kotlin-coroutines-flows` for async patterns.
+## Adapters
+
+Hono runs on multiple runtimes. The default export works for Cloudflare Workers, Deno, and Bun. For Node.js, use the Node adapter:
+
+```ts
+// Cloudflare Workers / Deno / Bun
+export default app
+
+// Node.js
+import { serve } from '@hono/node-server'
+serve(app)
+```

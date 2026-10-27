@@ -1,313 +1,141 @@
 ---
-name: android-reverse-engineering
-description: Decompile Android APK, XAPK, JAR, and AAR files using jadx or Fernflower/Vineflower. Reverse engineer Android apps, extract HTTP API endpoints (Retrofit, OkHttp, Volley), and trace call flows from UI to network layer. Use when the user wants to decompile, analyze, or reverse engineer Android packages, find API endpoints, or follow call flows.
-trigger: decompile APK|decompile XAPK|reverse engineer Android|extract API|analyze Android|jadx|fernflower|vineflower|follow call flow|decompile JAR|decompile AAR|Android reverse engineering|find API endpoints
+name: find-skills
+description: Helps users discover and install agent skills when they ask questions like "how do I do X", "find a skill for X", "is there a skill that can...", or express interest in extending capabilities. This skill should be used when the user is looking for functionality that might exist as an installable skill.
 ---
 
-# Android Reverse Engineering
+# Find Skills
 
-Decompile Android APK, XAPK, JAR, and AAR files using jadx and Fernflower/Vineflower, trace call flows through application code and libraries, and produce structured documentation of extracted APIs. Two decompiler engines are supported — jadx for broad Android coverage and Fernflower for higher-quality output on complex Java code — and can be used together for comparison.
+This skill helps you discover and install skills from the open agent skills ecosystem.
 
-## Prerequisites
+## When to Use This Skill
 
-This skill requires **Java JDK 17+** and **jadx** to be installed. **Fernflower/Vineflower** and **dex2jar** are optional but recommended for better decompilation quality. Run the dependency checker to verify:
+Use this skill when the user:
 
-```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/check-deps.sh
-```
+- Asks "how do I do X" where X might be a common task with an existing skill
+- Says "find a skill for X" or "is there a skill for X"
+- Asks "can you do X" where X is a specialized capability
+- Expresses interest in extending agent capabilities
+- Wants to search for tools, templates, or workflows
+- Mentions they wish they had help with a specific domain (design, testing, deployment, etc.)
 
-On Windows (PowerShell):
-```powershell
-& "${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/check-deps.ps1"
-```
+## What is the Skills CLI?
 
-If anything is missing, follow the installation instructions in `${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/references/setup-guide.md`.
+The Skills CLI (`npx skills`) is the package manager for the open agent skills ecosystem. Skills are modular packages that extend agent capabilities with specialized knowledge, workflows, and tools.
 
-## Workflow
+**Key commands:**
 
-### Phase 0: Fingerprint the App (recommended before anything else)
+- `npx skills find [query] [--owner <owner>]` - Search for skills interactively or by keyword, optionally scoped to a GitHub owner
+- `npx skills add <package>` - Install a skill from GitHub or other sources
+- `npx skills update` - Update all installed skills
 
-Before installing tools or decompiling, run a fast triage to determine what
-kind of app you are looking at. **Decompiling Java is mostly useless for
-Flutter, React Native, Cordova/Capacitor, and Xamarin apps** — the real code
-lives elsewhere. The fingerprint script tells you which.
+**Browse skills at:** https://skills.sh/
 
-```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/fingerprint.sh <file.apk|file.xapk>
-```
+## How to Help Users Find Skills
 
-It prints, in one screen:
+### Step 1: Understand What They Need
 
-- **Mobile framework** (Flutter / React Native / Cordova / Xamarin / Native Kotlin / etc.) with the file marker that triggered the verdict.
-- **HTTP stack** (Retrofit, OkHttp, Ktor, Apollo, Volley) detected via DEX string scan — works even when class names are obfuscated.
-- **DI / serialization** signals (Hilt, Dagger, Koin, kotlinx.serialization, Moshi, Gson, Jackson).
-- **Obfuscation level** estimate based on root-level short-named packages.
-- **Notable third-party SDKs** (AppsFlyer, Datadog, Sentry, Firebase, payment SDKs, support/chat SDKs, etc.).
-- **Consolidated native libraries** across the base APK and all splits — XAPK split bundles often place `.so` files in `config.<abi>.apk`, not in `base.apk`.
-- **Recommended next step**, which differs by framework (e.g. for Flutter the script suggests `blutter` / `strings libapp.so` rather than jadx).
+When a user asks for help with something, identify:
 
-If the fingerprint says the app is Flutter / RN / Cordova / Xamarin, **stop**
-and switch to the framework-appropriate tooling. Phases 1–5 below assume a
-native (Java/Kotlin) Android app.
+1. The domain (e.g., React, testing, design, deployment)
+2. The specific task (e.g., writing tests, creating animations, reviewing PRs)
+3. Whether this is a common enough task that a skill likely exists
 
-### Phase 1: Verify and Install Dependencies
+### Step 2: Check the Leaderboard First
 
-Before decompiling, confirm that the required tools are available — and install any that are missing.
+Before running a CLI search, check the [skills.sh leaderboard](https://skills.sh/) to see if a well-known skill already exists for the domain. The leaderboard ranks skills by total installs, surfacing the most popular and battle-tested options.
 
-**Action**: Run the dependency check script.
+For example, top skills for web development include:
+- `vercel-labs/agent-skills` — React, Next.js, web design (100K+ installs each)
+- `anthropics/skills` — Frontend design, document processing (100K+ installs)
+
+### Step 3: Search for Skills
+
+If the leaderboard doesn't cover the user's need, run the find command:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/check-deps.sh
+npx skills find [query] [--owner <owner>]
 ```
 
-On Windows (PowerShell):
-```powershell
-& "${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/check-deps.ps1"
+For example:
+
+- User asks "how do I make my React app faster?" → `npx skills find react performance`
+- User asks "can you help me with PR reviews?" → `npx skills find pr review`
+- User asks "I need to create a changelog" → `npx skills find changelog`
+
+### Step 4: Verify Quality Before Recommending
+
+**Do not recommend a skill based solely on search results.** Always verify:
+
+1. **Install count** — Prefer skills with 1K+ installs. Be cautious with anything under 100.
+2. **Source reputation** — Official sources (`vercel-labs`, `anthropics`, `microsoft`) are more trustworthy than unknown authors.
+3. **GitHub stars** — Check the source repository. A skill from a repo with <100 stars should be treated with skepticism.
+
+### Step 5: Present Options to the User
+
+When you find relevant skills, present them to the user with:
+
+1. The skill name and what it does
+2. The install count and source
+3. The install command they can run
+4. A link to learn more at skills.sh
+
+Example response:
+
+```
+I found a skill that might help! The "react-best-practices" skill provides
+React and Next.js performance optimization guidelines from Vercel Engineering.
+(185K installs)
+
+To install it:
+npx skills add vercel-labs/agent-skills@react-best-practices
+
+Learn more: https://skills.sh/vercel-labs/agent-skills/react-best-practices
 ```
 
-The output contains machine-readable lines:
-- `INSTALL_REQUIRED:<dep>` — must be installed before proceeding
-- `INSTALL_OPTIONAL:<dep>` — recommended but not blocking
+### Step 6: Offer to Install
 
-**If required dependencies are missing** (exit code 1), install them automatically:
+If the user wants to proceed, you can install the skill for them:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/install-dep.sh <dep>
+npx skills add <owner/repo@skill> -g -y
 ```
 
-On Windows (PowerShell):
-```powershell
-& "${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/install-dep.ps1" <dep>
+The `-g` flag installs globally (user-level) and `-y` skips confirmation prompts.
+
+## Common Skill Categories
+
+When searching, consider these common categories:
+
+| Category        | Example Queries                          |
+| --------------- | ---------------------------------------- |
+| Web Development | react, nextjs, typescript, css, tailwind |
+| Testing         | testing, jest, playwright, e2e           |
+| DevOps          | deploy, docker, kubernetes, ci-cd        |
+| Documentation   | docs, readme, changelog, api-docs        |
+| Code Quality    | review, lint, refactor, best-practices   |
+| Design          | ui, ux, design-system, accessibility     |
+| Productivity    | workflow, automation, git                |
+
+## Tips for Effective Searches
+
+1. **Use specific keywords**: "react testing" is better than just "testing"
+2. **Try alternative terms**: If "deploy" doesn't work, try "deployment" or "ci-cd"
+3. **Check popular sources**: Many skills come from `vercel-labs/agent-skills` or `ComposioHQ/awesome-claude-skills`
+
+## When No Skills Are Found
+
+If no relevant skills exist:
+
+1. Acknowledge that no existing skill was found
+2. Offer to help with the task directly using your general capabilities
+3. Suggest the user could create their own skill with `npx skills init`
+
+Example:
+
 ```
+I searched for skills related to "xyz" but didn't find any matches.
+I can still help you with this task directly! Would you like me to proceed?
 
-The install script detects the OS and package manager, then:
-- Installs without sudo when possible (downloads to `~/.local/share/`, symlinks in `~/.local/bin/`)
-- Uses sudo and the system package manager when necessary (apt, dnf, pacman)
-- If sudo is needed but unavailable or the user declines, it prints the exact manual command and exits with code 2 — show these instructions to the user
-
-**Windows notes**: The PowerShell install script uses `winget`, `scoop`, or `choco` (in that order). If none are available, it downloads directly to `%USERPROFILE%\.local\share\` and adds the directory to the user's PATH. After running `install-dep.ps1`, the PATH is persisted but the current terminal session may not see it. The `check-deps.ps1` and `decompile.ps1` scripts automatically refresh PATH from the user environment, so re-running them will find newly installed tools without restarting the terminal.
-
-**For optional dependencies**, ask the user if they want to install them. Vineflower and dex2jar are recommended for best results.
-
-After installation, re-run `check-deps.sh` to confirm everything is in place. Do not proceed to Phase 2 until all required dependencies are OK.
-
-### Phase 2: Decompile
-
-Use the decompile wrapper script to process the target file. The script supports three engines: `jadx`, `fernflower`, and `both`.
-
-**Action**: Choose the engine and run the decompile script. The script handles APK, XAPK, JAR, and AAR files.
-
-```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/decompile.sh [OPTIONS] <file>
+If this is something you do often, you could create your own skill:
+npx skills init my-xyz-skill
 ```
-
-On Windows (PowerShell):
-```powershell
-& "${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/decompile.ps1" [OPTIONS] <file>
-```
-
-For **XAPK** files (ZIP bundles containing multiple APKs, used by APKPure and similar stores): the script automatically extracts the archive, identifies all APK files inside (base + split APKs), and decompiles each one into a separate subdirectory. The XAPK manifest is copied to the output for reference.
-
-**Split/bundled APK detection**: Some APKs are actually bundle wrappers — the outer APK contains `base.apk` plus `split_config.*.apk` files inside its resources directory. When this happens, jadx will decompile the thin wrapper and produce very few Java files. The decompile scripts automatically detect this (≤10 Java files + inner APKs present) and re-decompile `base.apk` into an `<output>/base/` subdirectory. Config-only splits (ABI, language, density) are skipped. The main decompiled source will be in `<output>/base/sources/`.
-
-Options:
-- `-o <dir>` — Custom output directory (default: `<filename>-decompiled`)
-- `--deobf` — Enable deobfuscation (recommended for obfuscated apps)
-- `--no-res` — Skip resources, decompile code only (faster)
-- `--engine ENGINE` — `jadx` (default), `fernflower`, or `both`
-
-**Engine selection strategy**:
-
-| Situation | Engine |
-|---|---|
-| First pass on any APK | `jadx` (fastest, handles resources) |
-| JAR/AAR library analysis | `fernflower` (better Java output) |
-| jadx output has warnings/broken code | `both` (compare and pick best per class) |
-| Complex lambdas, generics, streams | `fernflower` |
-| Quick overview of a large APK | `jadx --no-res` |
-
-When using `--engine both`, the outputs go into `<output>/jadx/` and `<output>/fernflower/` respectively, with a comparison summary at the end showing file counts and jadx warning counts. Review classes with jadx warnings in the Fernflower output for better code.
-
-For APK files with Fernflower, the script automatically uses dex2jar as an intermediate step. dex2jar must be installed for this to work.
-
-See `${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/references/jadx-usage.md` and `${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/references/fernflower-usage.md` for the full CLI references.
-
-### Phase 3: Analyze Structure
-
-Navigate the decompiled output to understand the app's architecture.
-
-**Actions**:
-
-1. **Read AndroidManifest.xml** from `<output>/resources/AndroidManifest.xml`:
-   - Identify the main launcher Activity
-   - List all Activities, Services, BroadcastReceivers, ContentProviders
-   - Note permissions (especially `INTERNET`, `ACCESS_NETWORK_STATE`)
-   - Find the application class (`android:name` on `<application>`)
-
-2. **Survey the package structure** under `<output>/sources/`:
-   - Identify the main app package and sub-packages
-   - Distinguish app code from third-party libraries
-   - Look for packages named `api`, `network`, `data`, `repository`, `service`, `retrofit`, `http` — these are where API calls live
-
-3. **Read every `BuildConfig.java`** — these are almost never obfuscated and frequently leak the highest-signal constants in the entire APK (base URLs, flavor names, build type, third-party API keys, feature flags):
-   ```bash
-   find <output>/sources -name BuildConfig.java -exec grep -H '=' {} \;
-   ```
-   Each Gradle module emits its own `BuildConfig`, so expect 1–N hits. Read all of them.
-
-4. **Identify the architecture pattern**:
-   - MVP: look for `Presenter` classes
-   - MVVM: look for `ViewModel` classes and `LiveData`/`StateFlow`
-   - Clean Architecture: look for `domain`, `data`, `presentation` packages
-   - This informs where to look for network calls in the next phases
-
-### Phase 3.5: Recover Kotlin Class Names (only for obfuscated Kotlin apps)
-
-If Phase 0 reported moderate / high obfuscation **and** the app is Kotlin
-(Compose / kotlin_module markers detected), run the metadata recovery
-script before tracing call flows. R8 obfuscates JVM symbols but cannot
-strip Kotlin metadata strings, so original FQNs leak through
-`@DebugMetadata` and `@Metadata.d2`.
-
-```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/recover-kotlin-names.sh \
-    <output>/sources <output>/mapping
-```
-
-Then use the lookup helper instead of plain grep — every hit comes
-annotated with the owning class's real name:
-
-```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/lookup-name.sh \
-    <output>/mapping --grep '"/api/' <output>/sources
-```
-
-Typical recovery on a real-world Kotlin app: ~100% of `*Repository` /
-`*ViewModel` / `*UseCase` / `*Impl` classes, ~80% of DTOs.
-
-See `${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/references/kotlin-name-recovery.md`
-for the full technique and limitations.
-
-### Phase 4: Trace Call Flows
-
-Follow execution paths from user-facing entry points down to network calls.
-
-**Actions**:
-
-1. **Start from entry points**: Read the main Activity or Application class identified in Phase 3.
-
-2. **Follow the initialization chain**: Application.onCreate() often sets up the HTTP client, base URL, and DI framework. Read this first.
-
-3. **Trace user actions**: From an Activity, follow:
-   - `onCreate()` → view setup → click listeners
-   - Click handler → ViewModel/Presenter method
-   - ViewModel → Repository → API service interface
-   - API service → actual HTTP call
-
-4. **Map DI bindings** (if Dagger/Hilt is used): Find `@Module` classes to understand which implementations are provided for which interfaces.
-
-5. **Handle obfuscated code**: When class names are mangled, use string literals and library API calls as anchors. Retrofit annotations and URL strings are never obfuscated.
-
-See `${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/references/call-flow-analysis.md` for detailed techniques and grep commands.
-
-### Phase 5: Extract and Document APIs
-
-Find all API endpoints and produce structured documentation.
-
-**Action**: Run the API search script for a broad sweep.
-
-```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/find-api-calls.sh <output>/sources/
-```
-
-On Windows (PowerShell):
-```powershell
-& "${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/find-api-calls.ps1" <output>/sources/
-```
-
-Targeted searches:
-```bash
-# Only Retrofit
-bash ${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/find-api-calls.sh <output>/sources/ --retrofit
-
-# Only hardcoded URLs
-bash ${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/find-api-calls.sh <output>/sources/ --urls
-
-# Only auth patterns
-bash ${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/find-api-calls.sh <output>/sources/ --auth
-```
-
-On Windows (PowerShell):
-```powershell
-# Only Retrofit
-& "${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/find-api-calls.ps1" <output>/sources/ -Retrofit
-
-# Only hardcoded URLs
-& "${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/find-api-calls.ps1" <output>/sources/ -Urls
-
-# Only auth patterns
-& "${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/scripts/find-api-calls.ps1" <output>/sources/ -Auth
-```
-
-Document the endpoints in **two tiers** — going deep on every endpoint is
-prohibitively expensive on apps with 100+ paths, and most of them do not
-warrant it. Always produce Tier 1; expand Tier 2 only for the endpoints
-that matter.
-
-#### Tier 1 — flat inventory (always)
-
-A single table covering every discovered endpoint. Aim for one line each;
-if you cannot determine a column, write `?`.
-
-| Host | Method | Path | Auth | Source file |
-|------|--------|------|------|-------------|
-| `api.example.com` | GET | `/v1/users/profile` | Bearer | `com/example/api/UserApi.java` |
-| `api.example.com` | POST | `/v1/auth/login` | none | `com/example/api/AuthApi.java` |
-
-This table answers "what does the backend look like" in one screen and
-takes ~5 minutes to produce from the `--paths` output even on a large app.
-
-#### Tier 2 — per-endpoint detail (only for high-value endpoints)
-
-Reserve the detailed format for the few endpoints that actually need it:
-
-- the entire authentication flow (login, refresh, logout, OTP/SMS, anonymous, registration)
-- payment / checkout / order-creation endpoints
-- anything the user explicitly asked about
-- anything that looked unusual during the scan (custom signing, undocumented headers, etc.)
-
-```markdown
-### `METHOD /path`
-
-- **Source**: `com.example.api.ApiService` (ApiService.java:42)
-- **Base URL**: `https://api.example.com/v1`
-- **Path params**: `id` (String)
-- **Query params**: `page` (int), `limit` (int)
-- **Headers**: `Authorization: Bearer <token>`
-- **Request body**: `{ "email": "string", "password": "string" }`
-- **Response**: `ApiResponse<User>`
-- **Called from**: `LoginActivity → LoginViewModel → UserRepository → ApiService`
-```
-
-As a default, do not produce Tier 2 entries for more than ~10 endpoints
-unless the user explicitly asks for more — Tier 1 plus a Tier 2 deep dive
-on auth + 1-2 key flows is what most consumers of this work actually want.
-
-See `${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/references/api-extraction-patterns.md` for library-specific search patterns and the full documentation template.
-
-## Output
-
-At the end of the workflow, deliver:
-
-1. **Decompiled source** in the output directory
-2. **Architecture summary** — app structure, main packages, pattern used
-3. **API documentation** — all discovered endpoints in the format above
-4. **Call flow map** — key paths from UI to network (especially authentication and main features)
-
-## References
-
-- `${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/references/setup-guide.md` — Installing Java, jadx, Fernflower/Vineflower, dex2jar, and optional tools
-- `${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/references/jadx-usage.md` — jadx CLI options and workflows
-- `${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/references/fernflower-usage.md` — Fernflower/Vineflower CLI options, when to use, APK workflow
-- `${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/references/api-extraction-patterns.md` — Library-specific search patterns and documentation template
-- `${CLAUDE_PLUGIN_ROOT}/skills/android-reverse-engineering/references/call-flow-analysis.md` — Techniques for tracing call flows in decompiled code
