@@ -1,15 +1,30 @@
 {
-  "name": "disciplineos-root",
+  "name": "@disciplineos/dashboard",
   "version": "0.1.0",
   "private": true,
-  "description": "DisciplineOS — Cross-device discipline & distraction control ecosystem",
+  "type": "module",
   "scripts": {
-    "build": "pnpm --filter @disciplineos/shared build && pnpm --filter @disciplineos/server build",
-    "start": "pnpm --filter @disciplineos/server start",
-    "test": "pnpm --filter @disciplineos/server test",
-    "lint": "pnpm --filter @disciplineos/server lint"
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@disciplineos/shared": "workspace:*",
+    "canvas-confetti": "^1.9.4",
+    "lucide-react": "^0.475.0",
+    "motion": "^13.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "typescript": "^5.8.0"
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.0",
+    "vite": "^6.1.1"
   }
 }
